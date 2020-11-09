@@ -3,7 +3,7 @@ function [InitialObservation, LoggedSignal] = ...
 % Reset function to place quadcopter environment into a random initial
 %state defined as a hover at a given altitude, with no roll, pitch, or yaw,
 % and no linear velocity; however, there is a random angular velocity
-% caused by a disterbance which the RL program must overcome.
+% caused by a disturbance which the RL program must overcome.
 
 % Initial position
 spherical_1 = rand(1)*2*pi;
@@ -14,7 +14,7 @@ z1 = radius*cos(spherical_2);
 r_0 = [x1; y1; z1]; %Initial pos relative to target - m
 
 rdot_0 = [0; 0; 0]; %initial velocity [x; y; z] in inertial frame - m/s
-E_0 = [0; 0; 0]; %initial [pitch;roll;yaw] relative to interial frame -deg
+E_0 = [0; 0; 0]; %initial [pitch;roll;yaw] relative to inertial frame -deg
 
 sim_time = 0;
 

@@ -10,22 +10,22 @@ density = 1.225; %air density in kg/m^3
 
 %quadcopter and controller
 num_motors = 4;
-mass = 0.506; %kg, masss
-Ixx = 8.11858e-5; %kg-m^2, mass-moment of intertial about x-axis
-Iyy = Ixx; %kg-m^2, mass-moment of intertial about y-axis
-Izz = 6.12233e-5; %kg-m^2, mass-moment of intertial about z-axis
+mass = 0.506; %kg, mass
+Ixx = 8.11858e-5; %kg-m^2, mass-moment of inertial about x-axis
+Iyy = Ixx; %kg-m^2, mass-moment of inertial about y-axis
+Izz = 6.12233e-5; %kg-m^2, mass-moment of inertial about z-axis
 A_ref = 0.02; %m^2, reference area for drag calcs
 L = 0.2; %m, length from body center to prop center
-kt = 1e-7; %N/(rpm)^2, proportioanlity constant to convert motor 
+kt = 1e-7; %N/(rpm)^2, proportionality constant to convert motor 
            %rotational speed into thrust (T=kt*omega^2);
-b_prop = 1e-9; %Nm/(rpm)^2, proportioanlity constant to convert motor
+b_prop = 1e-9; %Nm/(rpm)^2, proportionality constant to convert motor
                %speed to torque (torque = b*omega^2)
-Cd = 1; %drag coefficent
+Cd = 1; %drag coefficient
 
 %maxT = 16.5; %N, max thrust from any single motor
-%minT = .5; %N, min thrust from any single mortor
+%minT = .5; %N, min thrust from any single motor
 maxT = 1.005*(mass*gravity)/num_motors; %N, max thrust from a single motor
-minT = 0.995*(mass*gravity)/num_motors; %N, min thrust from a single mortor
+minT = 0.995*(mass*gravity)/num_motors; %N, min thrust from a single motor
 
 %Desired positions
 %r_ref = [0; 0; 3]; %desired position [x; y; z] in inertial frame - meters
@@ -42,7 +42,7 @@ DisplacementThreshold = 3;
 
 
 %% Upack the inputs
-% Unpack the loggedsignals
+% Unpack the logged signals
 state = LoggedSignals.State;
 %r=state(1:3);
 rdot = state(4:6);
@@ -63,17 +63,17 @@ tau = [L*kt*(motor_speeds(4)-motor_speeds(2));
        b_prop*(-motor_speeds(1)+motor_speeds(2)...
        -motor_speeds(3)+motor_speeds(4))];
     
-%Angular Velocity in Body frame
+% Angular Velocity in Body frame
 omega = thetadot2omega(E, Edot);    
     
-%Linear accelerations in intertial frame
+% Linear accelerations in inertial frame
 r_dd = lin_acc(thrust, E, rdot, mass, g, Cd, A_ref,density);
 
-%Angual acceleration in interial frame
+% Angual acceleration in inertial frame
 omega_dot = I \ (tau - cross(omega, I*omega));
 %Edot_d = I \ (tau - cross(Edot, I*Edot));
 
-%angual acceleration in body frame
+% Angular acceleration in body frame
 Edot_d = omega2Edot(E, omega_dot);
 
 % Integration
@@ -149,12 +149,12 @@ function R = body2intertial_rotation(E)
 end
 
 function R = intertial2body_rotation(E)
-    %Euler rotations from interial to body frame
+    %Euler rotations from inertial to body frame
     %(Transpose of body-to-internal rotation)
     R = transpose(body2intertial_rotation(E));
 end
 
-%rotate interial angular vel (E_dot) to body angual vel (omega)
+%rotate inertial angular vel (E_dot) to body angular vel (omega)
 function omega = thetadot2omega(E, E_dot)
     phi = E(1);
     theta = E(2);
@@ -167,7 +167,7 @@ function omega = thetadot2omega(E, E_dot)
     omega = R*E_dot;
 end
 
-%rotate interial angular vel (omega) to body angular vel (E_dot)
+%rotate inertial angular vel (omega) to body angular vel (E_dot)
 function E_dot = omega2Edot(E, omega)
     phi = E(1);
     theta = E(2);
@@ -180,7 +180,7 @@ function E_dot = omega2Edot(E, omega)
     E_dot = R*omega;
 end
 
-%% Accelertation Functions
+%% Acceleration Functions
 
 %Find linear acceleration
 function acc_intertial = lin_acc(thrust,E,xdot,mass,g,Cd,A_ref,density)
@@ -197,7 +197,7 @@ function acc_intertial = lin_acc(thrust,E,xdot,mass,g,Cd,A_ref,density)
     drag_interial = R_B2I * drag_body;
     weight = mass.*g;
     
-    %linear acceleration in interial frame
+    %linear acceleration in inertial frame
     acc_intertial = (Thrust_interial+drag_interial+weight)/mass;
 end
 

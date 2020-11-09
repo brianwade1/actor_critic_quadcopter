@@ -59,7 +59,6 @@ This simulation will used a discretized control input for each of the quadcopter
 | -1 | 0.5% less thrust than what is required to hover in steady flight for a single motor |
 | 0 | The thrust required to hover in steady flight for a single motor |
 | 1 | 0.5% more thrust than what is required to hover in steady flight for a single motor |
-| | | |
 
 Because there are four motors each motor can perform any of these three actions, the AC agent must choose from 81 possible actions (3^4) at each time step. For example, a possible action might be [0, -1, 1, 0].  This means that motor 1 is set to action 0 (thrust required to hover), motor two is set to action -1 (0.5% less thrust than what is needed to hover), motor three is set to action 1 (0.5% more thrust than what is needed to hover), and motor four is set to action 0 (the thrust required to hover). The definition and discretization of the actions is calculated and defined in the main script, [RL_main_ActorCritic.m](RL_main_ActorCritic.m), in lines 36-67.
 
@@ -76,7 +75,6 @@ The actor in the A2C model is composed of a two-hidden layer feed-forward neural
 | Number of Nodes in 1st Hidden Layer (FC1) | Number of Nodes in 2nd Hidden Layer (FC2) | Learning Rate | Gradient Threshold | L2 Regularization Factor | Training Function |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | 128 | 64 | 1e-4 | 1 | 1e-4 | adam |
-| |
 
 The final layer in the actor network (FC4) had 81 nodes (one per available action vector). The final layer in the below diagram (ActorOutput) is the softmax to turn the action selection into a normalized percentage. The actor neural network model is shown below.
 
@@ -89,7 +87,6 @@ The critic in the A2C model is composed of a two-hidden layer feed-forward neura
 | Number of Nodes in 1st Hidden Layer (FC1) | Number of Nodes in 2nd Hidden Layer (FC2) | Learning Rate | Gradient Threshold | L2 Regularization Factor | Training Function |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | 264 | 128 | 1e-3 | 1 | 1e-5 | adam |
-| |
 
 The CriticOutput is a single node which represents the value of a given state. The critic neural network is shown below.
 
@@ -127,7 +124,7 @@ Using this reward function, the maximum reward that an agent can receive at a gi
 
 The training of the A2C agent took approximately four hours on a standard single-core laptop. the training progress is shown below:
 
-![training_progress](/Images/training_progress.png)
+![training_progress](/Images/training_progress.PNG)
 
 Once training, the main script then simulates the quadcopter in 10 separate simulations with different initial perturbations. The A2C agent achieved an average reward of 292 points. The position history of the quadcopter for one of these simulations is shown below. The quadcopter is making continual attempts to return to the origin and does not drift by more than 0.015 meters (~0.6 inches). Note, the vertical displacement is trending away but is still only -0.0012 meters (~0.5 inches). This could indicate that the agent is not fully trained. The agent could be improved with a larger action space (discretization into more points) or with a continuous action space.
 

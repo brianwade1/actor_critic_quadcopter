@@ -1,6 +1,6 @@
 # Actor-Critic Reinforcement Learning Controller for a Quadcopter
 
-This project trains an Advantage Actor-Critic (A2C) reinforcement learning agent to control the motor speeds on a quadcopter in order to keep the quadcopter in a stable hover following a random angular acceleration perturbation between 0-3 degrees per second in each of the control axes: pitch, roll, and yaw. The A2C control replaces the traditional controllers (two proportional–integral–derivative (PID) controllers) used for stability and guidance. The A2C controller was able to correct the random acceleration and keep the quadcopter near the initial point for the three second duration of the simulation.
+This project trains an Advantage Actor-Critic (A2C) reinforcement learning agent to control the motor speeds on a quadcopter in order to keep the quadcopter in a stable hover following a random angular acceleration perturbation between 0-3 degrees per second in each of the control axes: pitch, roll, and yaw. The A2C control replaces the traditional controllers (two proportional–integral–derivative (PID) controllers) used for stability and guidance. The A2C controller was able to correct the random acceleration and keep the quadcopter near the initial point for the three second duration of the simulation. This simulation uses a discrete action space so the agent does not have nuanced control and does not achieve a perfect hover.
 
 ---
 
@@ -52,21 +52,21 @@ The simulation will end in a failed episode if the quadcopter drifts more than 3
 
 ### Action Description
 
-This simulation will used a discretized control input for each of the quadcopter’s four motors. At each time step, the AC agent will choose one of three possible values for each motor: -1,  0, or 1. This number of available actions is defined by the variable ‘action_range’. The min and max of the action space maps to a 1% control authority for each motor that is centered at the thrust required to hover in steady flight for that individual motor (mass*gravity / number_of_motors).  Thus, the action for each motor is defined by that motor’s thrust required to hover in steady flight:
+This simulation will used a discretized control input for each of the quadcopter’s four motors. At each time step, the AC agent will choose one of three possible values for each motor: -1,  0, or 1. This number of available actions is defined by the variable ‘action_range’. The min and max of the action space maps to a 2% control authority for each motor that is centered at the thrust required to hover in steady flight for that individual motor (mass*gravity / number_of_motors).  Thus, the action for each motor is defined by that motor’s thrust required to hover in steady flight:
 
 | Actor Action | Action in Simulation from the Individual Motor |
 | :---: | --- |
-| -1 | 0.5% less thrust than what is required to hover in steady flight for a single motor |
+| -1 | 1% less thrust than what is required to hover in steady flight for a single motor |
 | 0 | The thrust required to hover in steady flight for a single motor |
-| 1 | 0.5% more thrust than what is required to hover in steady flight for a single motor |
+| 1 | 1% more thrust than what is required to hover in steady flight for a single motor |
 
-Because there are four motors each motor can perform any of these three actions, the AC agent must choose from 81 possible actions (3^4) at each time step. For example, a possible action might be [0, -1, 1, 0].  This means that motor 1 is set to action 0 (thrust required to hover), motor two is set to action -1 (0.5% less thrust than what is needed to hover), motor three is set to action 1 (0.5% more thrust than what is needed to hover), and motor four is set to action 0 (the thrust required to hover). The definition and discretization of the actions is calculated and defined in the main script, [RL_main_ActorCritic.m](RL_main_ActorCritic.m), in lines 36-67.
+Because there are four motors each motor can perform any of these three actions, the AC agent must choose from 81 possible actions (3^4) at each time step. For example, a possible action might be [0, -1, 1, 0].  This means that motor 1 is set to action 0 (thrust required to hover), motor two is set to action -1 (1% less thrust than what is needed to hover), motor three is set to action 1 (1% more thrust than what is needed to hover), and motor four is set to action 0 (the thrust required to hover). The definition and discretization of the actions is calculated and defined at the top of the main script, [RL_main_ActorCritic.m](RL_main_ActorCritic.m).
 
 ---
 
 ## A2C Actor and Critic Neural Networks
 
-Both the actor and critic models within the agent are composed of multi-layer feed-forward neural networks. The Actor neural network receives the state vector from the environment and chooses one of the 81 discretized action vectors. The Critic Neural Network also receives a state vector and estimates the value (long-term expected reward following the current policy) for that state. During training, the critic's estimate of the value of a state is used to update the actor's perception of the previous state's value using temporal differencing [[1]](#References). The advantage part of the A2C model simply means that the update for a value is the difference between the actual return (G <sub> t </sub>) and the estimates value (V(S|theta)). In this example, exploration is partially implemented with a stochastic actor.
+Both the actor and critic models within the agent are composed of multi-layer feed-forward neural networks. The Actor neural network receives the state vector from the environment and chooses one of the 81 discretized action vectors. The Critic Neural Network also receives a state vector and estimates the value (long-term expected reward following the current policy) for that state. During training, the critic's estimate of the value of a state is used to update the actor's perception of the previous state's value using temporal differencing [[1]](#References). The advantage part of the A2C model simply means that the update for a value is the difference between the actual return (G <sub>t</sub>) and the estimates value (V(S|theta)). In this example, exploration is partially implemented with a stochastic actor.
 
 ### Actor
 
@@ -96,7 +96,7 @@ The CriticOutput is a single node which represents the value of a given state. T
 
 ## Reward Function
 
-The reward function is the feedback provided by the environment that the A2C model uses to adjust the weights and bias values in the actor and critic so that actions taken maximize the long-term, cumulative reward. The reward function used in this example problem is expressed in the [QuadcopterStepFunction.m](QuadcopterStepFunction) file, lines 101-113. Note that several other potential reward functions are commented out in this section. The reward used in this example included three reward terms:
+The reward function is the feedback provided by the environment that the A2C model uses to adjust the weights and bias values in the actor and critic so that actions taken maximize the long-term, cumulative reward. The reward function used in this example problem is expressed in the [QuadcopterStepFunction.m](QuadcopterStepFunction) file, lines 100-106. Note that several other potential reward functions are commented out in this section. The reward used in this example included three reward terms:
 
 * r1: reward for remaining at or near the original location (origin - state(1:3) = (0, 0, 0))
 * r2: reward for motor actions that are similar - to hover the motors all need to output action 0 (speed required to hover). This is the action vector [0, 0, 0, 0].
@@ -106,9 +106,9 @@ The reward function used is:
 
 r1 = 1-abs(tanh(norm(NextObs(1:3))));
 
-r2 = -0.01*Action_delta;
+r2 = -0.1*Action_delta;
 
-r3 = -10*IsDone;
+r3 = -50*IsDone;
 
 Reward = r1 + r2 + r3;
 
@@ -124,11 +124,11 @@ Using this reward function, the maximum reward that an agent can receive at a gi
 
 The training of the A2C agent took approximately four hours on a standard single-core laptop. the training progress is shown below:
 
-![training_progress](/Images/training_progress.PNG)
+![training_progress](/Images/TrainingHistory_AC.png)
 
-Once training, the main script then simulates the quadcopter in 10 separate simulations with different initial perturbations. The A2C agent achieved an average reward of 292 points. The position history of the quadcopter for one of these simulations is shown below. The quadcopter is making continual attempts to return to the origin and does not drift by more than 0.015 meters (~0.6 inches). Note, the vertical displacement is trending away but is still only -0.0012 meters (~0.5 inches). This could indicate that the agent is not fully trained. The agent could be improved with a larger action space (discretization into more points) or with a continuous action space.
+Once training, the main script then simulates the quadcopter in 10 separate simulations with different initial perturbations. The A2C agent achieved an average reward of 292 points. The position history of the quadcopter for one of these simulations is shown below. The quadcopter is making continual attempts to return to the origin and does not drift by more than 0.05 meters. The agent could be improved with a larger action space (discretization into more points) or with a continuous action space.
 
-![TrainingSample](/Images/TrainingSample.png)
+![TrainingSample](/Images/TrainingSample_AC.png)
 
 ---
 

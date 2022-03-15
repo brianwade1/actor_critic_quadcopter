@@ -1,0 +1,196 @@
+function [NextObs,Reward,IsDone,LoggedSignals] = ...
+    QuadcopterStepFunction(Action,LoggedSignals,dt)
+% This function applies the given action to the environment and evaluates
+% the system dynamics for one simulation step.
+
+%% Define environment and quadcopter stats
+% Define the environment constants.
+gravity = 9.8; %acceleration due to gravity in m/s^2
+density = 1.225; %air density in kg/m^3
+
+%quadcopter and controller
+num_motors = 4;
+mass = 0.506; %kg, mass
+Ixx = 8.11858e-5; %kg-m^2, mass-moment of inertial about x-axis
+Iyy = Ixx; %kg-m^2, mass-moment of inertial about y-axis
+Izz = 6.12233e-5; %kg-m^2, mass-moment of inertial about z-axis
+A_ref = 0.02; %m^2, reference area for drag calcs
+L = 0.2; %m, length from body center to prop center
+kt = 1e-7; %N/(rpm)^2, proportionality constant to convert motor 
+           %rotational speed into thrust (T=kt*omega^2);
+b_prop = 1e-9; %Nm/(rpm)^2, proportionality constant to convert motor
+               %speed to torque (torque = b*omega^2)
+Cd = 1; %drag coefficient
+
+%maxT = 16.5; %N, max thrust from any single motor
+%minT = .5; %N, min thrust from any single motor
+maxT = 1.01*(mass*gravity)/num_motors; %N, max thrust from a single motor
+minT = 0.99*(mass*gravity)/num_motors; %N, min thrust from a single motor
+
+%Desired positions
+%r_ref = [0; 0; 3]; %desired position [x; y; z] in inertial frame - meters
+
+%Variable setup
+I = [Ixx, 0, 0; 0, Iyy, 0; 0, 0, Izz];
+g = [0; 0; -gravity];
+
+%% Thresholds and rewards
+% quadcotper angle at which to fail the episode - deg converted to rad
+AngleThreshold = 80 * pi/180;
+YawThreshold = 170 * pi/180;
+DisplacementThreshold = 3;
+
+
+%% Upack the inputs
+% Unpack the logged signals
+state = LoggedSignals.State;
+%r=state(1:3);
+rdot = state(4:6);
+E=state(7:9);
+Edot=state(10:12);
+sim_time=state(13);
+
+%Map action to input
+motor_speeds=(maxT-0.5.*(maxT-minT).*(1-Action))./(kt);
+
+%% Simulation Dynamics
+%Body thrust
+thrust = kt*sum(motor_speeds);
+
+% Body torques from motors
+tau = [L*kt*(motor_speeds(4)-motor_speeds(2));
+       L*kt*(motor_speeds(3)-motor_speeds(1));
+       b_prop*(-motor_speeds(1)+motor_speeds(2)...
+       -motor_speeds(3)+motor_speeds(4))];
+    
+% Angular Velocity in Body frame
+omega = thetadot2omega(E, Edot);    
+    
+% Linear accelerations in inertial frame
+r_dd = lin_acc(thrust, E, rdot, mass, g, Cd, A_ref,density);
+
+% Angual acceleration in inertial frame
+omega_dot = I \ (tau - cross(omega, I*omega));
+%Edot_d = I \ (tau - cross(Edot, I*Edot));
+
+% Angular acceleration in body frame
+Edot_d = omega2Edot(E, omega_dot);
+
+% Integration
+LoggedSignals.State = state + dt.*[rdot;r_dd;Edot;Edot_d;1];
+
+% Transform state to observation
+NextObs = LoggedSignals.State;
+
+%% Check for error
+if sum(isnan(NextObs))>0
+    %disp('NaN error')
+    disp(LoggedSignals.State)
+    LoggedSignals.State = state;
+    NextObs = state;
+    IsDone = 1;    
+else
+    Theta = NextObs(7:9);
+    
+    IsDone = norm(NextObs(1:3))>DisplacementThreshold || ...
+        max(abs(Theta(1:2))) > AngleThreshold || ...
+        abs(Theta(3)) > YawThreshold;
+end
+
+% Get reward
+Action_delta = max(Action)- min(Action);
+
+r1 = 1-abs(tanh(norm(NextObs(1:3))));
+r2 = -0.1*Action_delta;
+r3 = -50*IsDone;
+Reward = r1 + r2 + r3;
+
+% r1 = DisplacementThreshold - norm(state(1:3));
+% r2 = AngleThreshold - norm(state(7:8));
+% r3 = YawThreshold - abs(state(9));
+% r4 = -50 * IsDone;
+% Reward = r1 + r2 + r3 + r4;
+
+
+end
+
+
+%% Rotation Functions
+
+%Euler rotations from body-frame to global inertial frame
+function R = body2intertial_rotation(E)
+    %Euler rotations from body-frame to global inertial frame
+    %    angle 0 = roll (x-axis, phi)
+    %    angle 1 = pitch (y-axis, theta)
+    %    angle 2 = yaw (z-axis, psi)
+
+    phi = E(1);
+    theta = E(2);
+    psi = E(3);
+    
+    c1 = cos(phi);
+    s1 = sin(phi);
+    c2 = cos(theta);
+    s2 = sin(theta);
+    c3 = cos(psi);
+    s3 = sin(psi);
+    
+    R = [c2*c3, c3*s1*s2 - c1*s3, s1*s3 + c1*s2*c3;
+        c2*s3, c1*c3 + s1*s2*s3, c1*s3*s2 - c3*s1;
+        -s2, c2*s1, c1*c2];
+    
+end
+
+function R = intertial2body_rotation(E)
+    %Euler rotations from inertial to body frame
+    %(Transpose of body-to-internal rotation)
+    R = transpose(body2intertial_rotation(E));
+end
+
+%rotate inertial angular vel (E_dot) to body angular vel (omega)
+function omega = thetadot2omega(E, E_dot)
+    phi = E(1);
+    theta = E(2);
+    psi = E(3);
+    
+    R = [1, 0, -sin(theta);
+        0, cos(phi), cos(theta)*sin(phi);
+        0, -sin(phi), cos(theta)*cos(phi)];
+    
+    omega = R*E_dot;
+end
+
+%rotate inertial angular vel (omega) to body angular vel (E_dot)
+function E_dot = omega2Edot(E, omega)
+    phi = E(1);
+    theta = E(2);
+    psi = E(3);
+    
+    R = [1, sin(phi)*tan(theta), cos(phi)*tan(theta); 
+        0, cos(phi), -sin(phi); 
+        0, sin(phi)/cos(theta), cos(phi)/cos(theta)];
+    
+    E_dot = R*omega;
+end
+
+%% Acceleration Functions
+
+%Find linear acceleration
+function acc_intertial = lin_acc(thrust,E,xdot,mass,g,Cd,A_ref,density)
+    R_B2I = body2intertial_rotation(E);
+    R_I2B = intertial2body_rotation(E);
+    
+    %body forces
+    Thrust_body = [0; 0; thrust];
+    Thrust_interial = R_B2I*Thrust_body; %convert to intertial frame
+    
+    %forces in interial frame
+    xdot_body = R_I2B*xdot;
+    drag_body = -Cd*0.5*density*A_ref*xdot_body.^2;
+    drag_interial = R_B2I * drag_body;
+    weight = mass.*g;
+    
+    %linear acceleration in inertial frame
+    acc_intertial = (Thrust_interial+drag_interial+weight)/mass;
+end
+

@@ -24,8 +24,8 @@ Cd = 1; %drag coefficient
 
 %maxT = 16.5; %N, max thrust from any single motor
 %minT = .5; %N, min thrust from any single motor
-maxT = 1.005*(mass*gravity)/num_motors; %N, max thrust from a single motor
-minT = 0.995*(mass*gravity)/num_motors; %N, min thrust from a single motor
+maxT = 1.01*(mass*gravity)/num_motors; %N, max thrust from a single motor
+minT = 0.99*(mass*gravity)/num_motors; %N, min thrust from a single motor
 
 %Desired positions
 %r_ref = [0; 0; 3]; %desired position [x; y; z] in inertial frame - meters
@@ -99,25 +99,11 @@ end
 
 % Get reward
 Action_delta = max(Action)- min(Action);
-%r1 = 1*(NextObs(13)/sim_end);
-%r2 = 2*(1-norm(NextObs(1:3)));
-%r3 = -0.01*Action_delta;
-%r4 = -0.05*(norm(NextObs(4:6))); %1*(norm(NextObs(1:3))<.5);
-%r5 = -0.05*(norm(NextObs(7:9)));
-%r6 = -3*IsDone;
-%Reward = r1 + r2 + r3 + r4 + r5 + r6;
 
 r1 = 1-abs(tanh(norm(NextObs(1:3))));
-r2 = -0.01*Action_delta;
-r3 = -10*IsDone;
+r2 = -0.1*Action_delta;
+r3 = -50*IsDone;
 Reward = r1 + r2 + r3;
-
-% r1 = DisplacementThreshold - norm(state(1:3));
-% r2 = AngleThreshold - norm(state(7:8));
-% r3 = YawThreshold - abs(state(9));
-% r4 = -50 * IsDone;
-% Reward = r1 + r2 + r3 + r4;
-
 
 end
 

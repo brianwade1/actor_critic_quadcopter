@@ -1,7 +1,8 @@
 %Quadcopter Renforcement Learning Simulation
 %Written by: Brian Wade, 3 Jan 20
-%MATLAB dependencies: RL toolbox
-%Parallel toolbox is "want_parallel" or "want_gpu" is set to true
+%MATLAB dependencies: Reinforcement learning, deep learning, global
+%optimization, statistics and machine learning
+%Parallel toolbox required if "want_parallel" or "want_gpu" is set to true
 
 
 %% Initalize
@@ -16,7 +17,7 @@ rng(0)  %set random seed
 intial_radius = 0; %initial start radius (random direction) from target- m
 initial_deviation = 3; %inital random angular velocity - deg/s
 
-action_range = 3;
+action_range = 3; %number of actions for each motor
 
 want_parallel = false;
 want_gpu = false;
@@ -27,14 +28,15 @@ doSim = true;
 num_sims = 10;
 
 image_folder = 'Images';
+agentName = 'AC';
 
 learn_rate_critic = 1e-3;
 grad_threshold_critic = 1;
-L2RegFac_critic = 1e-5; %1e-5
+L2RegFac_critic = 1e-5;
 
 learn_rate_actor = 1e-4;
 grad_threshold_actor = 1;
-L2RegFac_actor = 1e-4; %1e-4
+L2RegFac_actor = 1e-4;
 
 criticStateFC1size=264;
 criticStateFC2size=128;
@@ -43,11 +45,13 @@ actorFC1size=128;
 actorFC2size=64;
 
 DiscountFactor = 0.99;
-EntropyLossWeight = 0.05; %0  0.01
-NumStepsToLookAhead = 128; %64  128 (only used with want_parellel = true)
+EntropyLossWeight = 0.05;
+NumStepsToLookAhead = 128; 
 
-MaxEpisodes = 30000;
+MaxEpisodes = 40000;
 ScoreAveragingWindowLength = 30;
+StopTrainingCriteria = 'AverageReward';
+StopTrainingValue = 290;
 
 %sim run time
 sim_start = 0; %start time of simulation
@@ -87,16 +91,16 @@ ObservationInfo.Description = ...
 
 ii=0;
 action_space = cell(action_range);
-for i = -1:2/(action_range-1):1
+for i = -1:2/(action_range - 1):1
     ii=ii+1;
     jj=0;
-    for j = -1:2/(action_range-1):1
+    for j = -1:2/(action_range - 1):1
         jj=jj+1;
         kk=0;
-        for k = -1:2/(action_range-1):1
+        for k = -1:2/(action_range - 1):1
             kk=kk+1;
             ll=0;
-            for l = -1:2/(action_range-1):1
+            for l = -1:2/(action_range - 1):1
                 ll=ll+1;
                 action_space{ii,jj,kk,ll}=[i j k l];
             end
@@ -182,9 +186,9 @@ actor = rlStochasticActorRepresentation(actorNetwork,ObservationInfo,...
 steps_per_episode = ceil((sim_end - sim_start)/dt);
 
 agentOptions = rlACAgentOptions(...
-    'SampleTime',dt,...
-    'EntropyLossWeight',EntropyLossWeight,...
-    'DiscountFactor',DiscountFactor);
+    'SampleTime', dt,...
+    'EntropyLossWeight', EntropyLossWeight,...
+    'DiscountFactor', DiscountFactor);
 
 
 if want_parallel == true  %set up for A3C agent
@@ -193,21 +197,22 @@ else  %set up for normal AC agent
     agentOptions.NumStepsToLookAhead = steps_per_episode; %MaxEpisodes;
 end
 
-agent = rlACAgent(actor,critic,agentOptions);
+agent = rlACAgent(actor, critic, agentOptions);
 
 
 %% Setup Training for Agent
-SaveAgentDirectory = fullfile(agent_folder,'trained_quadcopter_AC_agent');
+saved_agent_name = strcat('trained_quadcopter_', agentName, '_agent');
+SaveAgentDirectory = fullfile(agent_folder,saved_agent_name);
 
 trainOpts = rlTrainingOptions(...
-    'MaxEpisodes',MaxEpisodes,...
+    'MaxEpisodes', MaxEpisodes,...
     'MaxStepsPerEpisode', steps_per_episode,...
-    'Verbose',false,...
+    'Verbose', false,...
     'Plots','training-progress',...
-    'StopOnError',"off",...
-    'StopTrainingCriteria','EpisodeCount',...
-    'StopTrainingValue',MaxEpisodes,...
-    'ScoreAveragingWindowLength',ScoreAveragingWindowLength, ...
+    'StopOnError', "off",...
+    'StopTrainingCriteria', StopTrainingCriteria,...
+    'StopTrainingValue', StopTrainingValue,...
+    'ScoreAveragingWindowLength', ScoreAveragingWindowLength, ...
     'SaveAgentDirectory', SaveAgentDirectory); 
 
 if want_parallel == true
@@ -230,6 +235,26 @@ if doTraining == true
     
     if saveFinalAgent == true
         save(trainOpts.SaveAgentDirectory,'agent')
+        
+        figure()
+        plot(trainingStats.EpisodeIndex, trainingStats.EpisodeReward,...
+            '--','Color',[0.3010 0.7450 0.9330])
+        hold on
+        plot(trainingStats.EpisodeIndex, trainingStats.AverageReward,...
+            ':','Color',[0 0.4470 0.7410], 'LineWidth',2)
+        plot(trainingStats.EpisodeIndex, trainingStats.EpisodeQ0,...
+            '-x','Color',[0.9290 0.6940 0.1250])
+        hold off
+        xlabel('Episode Number')
+        ylabel('Episode Reward')
+        title(strcat('Reward Training History for ', agentName, ' Agent'))
+        legend('Average Reward', 'Episode Reward', 'Episode Q0',...
+            'location', 'northwest')
+
+        image_file = strcat('TrainingHistory_', agentName, '.png');
+        image_save_path = fullfile(image_folder,image_file);
+        set(gcf,'position',[50,50,1200,400])
+        saveas(gcf,image_save_path)
     end
     
     disp(' ')
@@ -278,10 +303,12 @@ if doSim == true  %%% need to update this
     y_sim = experience.Observation.QuadcopterStates.Data(2,:);
     z_sim = experience.Observation.QuadcopterStates.Data(3,:);
     
+    total_pos_sim = zeros(1,size(pos_sim,2));
     for i = 1:size(pos_sim,2)
         total_pos_sim(i) = norm(pos_sim(:,i));
     end
     
+    figure()
     subplot(1,3,1)
     plot(total_pos_sim)
     xlabel('Time (s)')
@@ -297,7 +324,8 @@ if doSim == true  %%% need to update this
     xlabel('Time (s)')
     ylabel('Z-Direction Displacement (m)')
     title('Vertical Displacement')
-    image_file = 'TrainingSample.png';
+
+    image_file = strcat('TrainingSample_', agentName, '.png');
     image_save_path = fullfile(image_folder,image_file);
     set(gcf,'position',[50,50,1200,400])
     saveas(gcf,image_save_path)
